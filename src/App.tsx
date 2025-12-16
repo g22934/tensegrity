@@ -8,16 +8,12 @@ import { Text, Billboard } from '@react-three/drei';
 
 
 function App() {
-  const { rad, x } = useControls({
-    rad: { value: 3, min: 0, max: 15, step: 0.1 },
-    x: { value: 0, min: -5, max: 15, step: 0.1 },
-  });
-
+  
   const A = math.matrix([[0, 1, 0], [0, 0, -1], [-1, 0, 0]]);
   const B = math.matrix([[1, 0, 0], [0, -1, 0], [0, 0, -1]]);
   const C = math.matrix([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]);
 
-  const mats = [];
+  const mats:any[] = [];
   for (let a = 0; a < 3; a++) {
     for (let b = 0; b < 2; b++) {
       for (let c = 0; c < 2; c++) {
@@ -30,16 +26,20 @@ function App() {
       }
     }
   }
+  const { gomColor } = useControls({
+  gomColor: '#ffc400ff', // ← ここが好きな初期色
+  });
 
-function Vertex({ xyz, index }) {
+
+function Vertex({ xyz, index, color }:any) {
   return (
     <group position={xyz}>
       <mesh>
         <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial color="red" />
+        <meshStandardMaterial color={color} />
       </mesh>
 
-      <Billboard follow={true} lockX={false} lockY={false} lockZ={false}>
+      <Billboard>
         <Text
           position={[0, 1.2, 0]}
           fontSize={1.2}
@@ -57,27 +57,25 @@ function Vertex({ xyz, index }) {
 }
 
 
-function Vertices({ x0 }) {
+
+function Vertices({ x0 }:any) {
+  const { vertexColor } = useControls({
+    vertexColor: '#ffffff', // ← 頂点の色（ここが1個だけ）
+  });
+
   const points = mats.map((m) => math.multiply(m, math.matrix(x0)));
+
   return points.map((pt, i) => (
-    <Vertex key={i} xyz={pt.valueOf()} index={i + 1} />
+    <Vertex
+      key={i}
+      xyz={pt.valueOf()}
+      index={i + 1}
+      color={vertexColor}   // ← 全部同じ色になる
+    />
   ));
 }
 
-
-
-  function StrawFrom({ x0, color = 'orange' }) {
-    const to = math.multiply(A, math.matrix(x0));
-    return <CylinderBetween start={x0} end={to.valueOf()} radius={0.2} color={color} />;
-  }
-
-  function StrawFromM({ x0, M, color = 'orange' }) {
-    const to = math.multiply(math.multiply(M, A), math.matrix(x0));
-    const from = math.multiply(M, math.matrix(x0));
-    return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.2} color={color} />;
-  }
-
-  function Triangle({ M, x0, color }) {
+  function Triangle({ M, x0, color }:any) {
     const p1 = math.multiply(M, math.matrix(x0)).valueOf();
     const p2 = math.multiply(math.multiply(M, A), math.matrix(x0)).valueOf();
     const p3 = math.multiply(math.multiply(M, math.pow(A, 2)), math.matrix(x0)).valueOf();
@@ -91,34 +89,73 @@ function Vertices({ x0 }) {
     );
   }
 
-  function Straws({ x0 }) {
-    const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan', 'pink'];
-    return mats.map((M, i) => <Triangle key={i} M={M} x0={x0} color={colors[i % colors.length]} />);
-  }
+function Straws({ x0 }:any) {
+  // 三角形の色
+  const colorControls = useControls('Triangle Colors', {
+    tri1: '#ff0000',
+    tri2: '#0000ff',
+    tri3: '#00ff00',
+    tri4: '#ddff00ff',
+  });
 
-  function Gom1({ x0, M, color = 'black' }) {
-    const G1 = math.multiply(A, B);
-    const to = math.multiply(math.multiply(M, G1), math.matrix(x0));
-    const from = math.multiply(M, math.matrix(x0));
-    return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.05} color={color} />;
-  }
+  // 👇 表示 / 非表示スイッチ
+  const visibleControls = useControls('Triangle Visible', {
+    t1: true,
+    t2: true,
+    t3: true,
+    t4: true,
+  });
 
-  function Goms1({ x0 }) {
-    return mats.map((M, i) => <Gom1 key={i} x0={x0} M={M} />);
-  }
+  const colors = Object.values(colorControls);
+  const visibles = Object.values(visibleControls);
 
-  function Gom2({ x0, M, color = 'black' }) {
-    const G2 = math.multiply(A, C);
-    const to = math.multiply(math.multiply(M, G2), math.matrix(x0));
-    const from = math.multiply(M, math.matrix(x0));
-    return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.05} color={color} />;
-  }
+  return mats.map((M, i) => {
+    // 👇 OFFなら描画しない
+    if (!visibles[i % visibles.length]) return null;
 
-  function Goms2({ x0 }) {
-    return mats.map((M, i) => <Gom2 key={i} x0={x0} M={M} />);
-  }
+    return (
+      <Triangle
+        key={i}
+        M={M}
+        x0={x0}
+        color={colors[i % colors.length]}
+      />
+    );
+  });
+}
 
-  function CylinderBetween({ start, end, radius = 0.02, color = 'orange' }) {
+
+
+function Goms1({ x0, gomColor }:any) {
+  return mats.map((M, i) => <Gom1 key={i} x0={x0} M={M} color={gomColor} />);
+}
+
+function Gom1({ x0, M, color }:any) {
+  const G1 = math.multiply(A, B);
+  const to = math.multiply(math.multiply(M, G1), math.matrix(x0));
+  const from = math.multiply(M, math.matrix(x0));
+  return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.05} color={color} />;
+}
+
+function Goms2({ x0 }:any) {
+  const { gomColor } = useControls({
+    gomColor: '#ff9900ff',
+  });
+
+  return mats.map((M, i) => <Gom2 key={i} x0={x0} M={M} color={gomColor} />);
+}
+
+
+
+function Gom2({ x0, M, color }:any) {
+  const G2 = math.multiply(A, C);
+  const to = math.multiply(math.multiply(M, G2), math.matrix(x0));
+  const from = math.multiply(M, math.matrix(x0));
+  return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.05} color={color} />;
+}
+
+
+  function CylinderBetween({ start, end, radius = 0.02, color = 'orange' }:any) {
     const startVec = useMemo(() => new THREE.Vector3(...start), [start]);
     const endVec = useMemo(() => new THREE.Vector3(...end), [end]);
 
@@ -150,8 +187,9 @@ function Vertices({ x0 }) {
 
         <Vertices x0={p0} />
         <Straws x0={p0} />
-        <Goms1 x0={p0} />
-        <Goms2 x0={p0} />
+        <Goms1 x0={p0} gomColor={gomColor} />
+        <Goms2 x0={p0} gomColor={gomColor} />
+
 
         <OrbitControls />
       </Canvas>
