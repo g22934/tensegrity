@@ -1,27 +1,22 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Cylinder, Text, Billboard } from '@react-three/drei';
-import { useControls } from 'leva';
+import { useControls, button } from 'leva';
 import * as THREE from 'three';
 import * as math from 'mathjs';
 
-// --- 1. 定数と行列の計算（Appの外に出す） ---
+// --- 定数と行列 ---
 const A = math.matrix([[0, 1, 0], [0, 0, -1], [-1, 0, 0]]);
 const B = math.matrix([[1, 0, 0], [0, -1, 0], [0, 0, -1]]);
 const C = math.matrix([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]);
 
 const mats: any[] = [];
-
 let triIndex = 0;
-
 for (let a = 0; a < 4; a++) {
   for (let b = 0; b < 2; b++) {
     for (let c = 0; c < 2; c++) {
       mats.push({
-        M: math.multiply(
-          math.multiply(math.pow(A, a), math.pow(B, b)),
-          math.pow(C, c)
-        ),
+        M: math.multiply(math.multiply(math.pow(A, a), math.pow(B, b)), math.pow(C, c)),
         tri: triIndex,
       });
       triIndex++;
@@ -29,11 +24,7 @@ for (let a = 0; a < 4; a++) {
   }
 }
 
-
-
-
-// --- 2. 各パーツ（コンポーネント）の定義（Appの外に出す） ---
-
+// --- コンポーネント ---
 function CylinderBetween({ start, end, radius = 0.02, color = 'orange' }: any) {
   const startVec = useMemo(() => new THREE.Vector3(...start), [start]);
   const endVec = useMemo(() => new THREE.Vector3(...end), [end]);
@@ -62,7 +53,13 @@ function Vertex({ xyz, index, color }: any) {
         <meshStandardMaterial color={color} />
       </mesh>
       <Billboard>
-        <Text position={[0, 1.2, 0]} fontSize={1.2} color="white" outlineColor="black" outlineWidth={0.05}>
+        <Text
+          position={[0, 1.2, 0]}
+          fontSize={1.2}
+          color="white"
+          outlineColor="black"
+          outlineWidth={0.05}
+        >
           {index}
         </Text>
       </Billboard>
@@ -71,42 +68,29 @@ function Vertex({ xyz, index, color }: any) {
 }
 
 function Vertices({ x0, color }: any) {
-  // 位置を文字列化して一意化
   const unique = new Map<string, number[]>();
-
   mats.forEach(({ M }) => {
     const p = math.multiply(M, math.matrix(x0)).valueOf() as number[];
-    const key = p.map(v => v.toFixed(4)).join(',');
-
-    if (!unique.has(key)) {
-      unique.set(key, p);
-    }
+    const key = p.map((v) => v.toFixed(4)).join(',');
+    if (!unique.has(key)) unique.set(key, p);
   });
-
-  const points = Array.from(unique.values());
-
-  return points.map((pt, i) => (
-    <Vertex
-      key={i}
-      xyz={pt}
-      index={i + 1}
-      color={color}
-    />
+  return Array.from(unique.values()).map((pt, i) => (
+    <Vertex key={i} xyz={pt} index={i + 1} color={color} />
   ));
 }
 
-
-
-function Triangle({ M, x0, color }: any) { 
-  const p1 = math.multiply(M, math.matrix(x0)).valueOf(); 
-  const p2 = math.multiply(math.multiply(M, A), math.matrix(x0)).valueOf(); 
-  const p3 = math.multiply(math.multiply(M, math.pow(A, 2)), math.matrix(x0)).valueOf(); 
-  return ( <> 
-  <CylinderBetween start={p1} end={p2} radius={0.2} color={color} /> 
-  <CylinderBetween start={p2} end={p3} radius={0.2} color={color} /> 
-  <CylinderBetween start={p3} end={p1} radius={0.2} color={color} /> </> 
-  ); }
-
+function Triangle({ M, x0, color }: any) {
+  const p1 = math.multiply(M, math.matrix(x0)).valueOf();
+  const p2 = math.multiply(math.multiply(M, A), math.matrix(x0)).valueOf();
+  const p3 = math.multiply(math.multiply(M, math.pow(A, 2)), math.matrix(x0)).valueOf();
+  return (
+    <>
+      <CylinderBetween start={p1} end={p2} radius={0.2} color={color} />
+      <CylinderBetween start={p2} end={p3} radius={0.2} color={color} />
+      <CylinderBetween start={p3} end={p1} radius={0.2} color={color} />
+    </>
+  );
+}
 
 function Straws({ x0, colors, visibles }: any) {
   return (
@@ -117,9 +101,7 @@ function Straws({ x0, colors, visibles }: any) {
           (m.tri === 1 && visibles.t2) ||
           (m.tri === 2 && visibles.t3) ||
           (m.tri === 3 && visibles.t4);
-
         if (!visible) return null;
-
         return (
           <Triangle
             key={i}
@@ -141,10 +123,6 @@ function Straws({ x0, colors, visibles }: any) {
   );
 }
 
-
-
-
-
 function Gom1({ x0, M, color }: any) {
   const G1 = math.multiply(A, B);
   const to = math.multiply(math.multiply(M, G1), math.matrix(x0));
@@ -161,7 +139,6 @@ function Gom2({ x0, M, color }: any) {
 
 function Goms({ x0, color, visible }: any) {
   if (!visible) return null;
-
   return (
     <>
       {mats.map(({ M }, i) => (
@@ -174,10 +151,10 @@ function Goms({ x0, color, visible }: any) {
   );
 }
 
-
-// --- 3. App本体（ここにはコントロールとCanvasだけ残す） ---
-
+// --- App本体 ---
 export default function App() {
+  const [step, setStep] = useState(3); //初期状態は3
+
   const triangleColors = useControls('Triangle Colors', {
     tri1: '#ff0000',
     tri2: '#0000ff',
@@ -192,36 +169,30 @@ export default function App() {
     t4: true,
   });
 
-    const { gomColor, vertexColor, gomVisible } = useControls('Other Colors', {
-      gomColor: '#ffc400ff',
-      vertexColor: '#ffffff',
-      gomVisible: true, 
-    });
+  const { gomColor, vertexColor, gomVisible } = useControls('Other Colors', {
+    gomColor: '#ffc400ff',
+    vertexColor: '#ffffff',
+    gomVisible: true,
+  });
 
+  // ステップ切り替えボタン
+  useControls('Step', {
+    '① 点だけ': button(() => setStep(1)),
+    '② ストロー追加': button(() => setStep(2)),
+    '③ ゴムで完成': button(() => setStep(3)),
+  });
 
   const p0 = [0, 7.07, 7.07];
 
-  
-return (
+  return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <Canvas camera={{ position: [15, 15, 15] }}>
         <ambientLight intensity={0.75} />
         <directionalLight position={[10, 10, 10]} />
 
-        <Vertices x0={p0} color={vertexColor} />
-
-       <Straws
-        x0={p0}
-        colors={triangleColors}
-        visibles={triangleVisible}
-      />
-    <Goms
-      x0={p0}
-      color={gomColor}
-      visible={gomVisible}
-    />
-
-
+        {step >= 1 && <Vertices x0={p0} color={vertexColor} />}
+        {step >= 2 && <Straws x0={p0} colors={triangleColors} visibles={triangleVisible} />}
+        {step >= 3 && <Goms x0={p0} color={gomColor} visible={gomVisible} />}
 
         <OrbitControls />
       </Canvas>
