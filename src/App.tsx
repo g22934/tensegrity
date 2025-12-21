@@ -1,54 +1,68 @@
 import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Cylinder } from '@react-three/drei';
+import { OrbitControls, Cylinder, Text, Billboard } from '@react-three/drei';
 import { useControls } from 'leva';
 import * as THREE from 'three';
 import * as math from 'mathjs';
-import { Text, Billboard } from '@react-three/drei';
 
+// --- 1. 定数と行列の計算（Appの外に出す） ---
+const A = math.matrix([[0, 1, 0], [0, 0, -1], [-1, 0, 0]]);
+const B = math.matrix([[1, 0, 0], [0, -1, 0], [0, 0, -1]]);
+const C = math.matrix([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]);
 
-function App() {
-  
-  const A = math.matrix([[0, 1, 0], [0, 0, -1], [-1, 0, 0]]);
-  const B = math.matrix([[1, 0, 0], [0, -1, 0], [0, 0, -1]]);
-  const C = math.matrix([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]);
+const mats: any[] = [];
 
-  const mats:any[] = [];
-  for (let a = 0; a < 3; a++) {
-    for (let b = 0; b < 2; b++) {
-      for (let c = 0; c < 2; c++) {
-        mats.push(
-          math.multiply(
-            math.multiply(math.pow(A, a), math.pow(B, b)),
-            math.pow(C, c)
-          )
-        );
-      }
+let triIndex = 0;
+
+for (let a = 0; a < 4; a++) {
+  for (let b = 0; b < 2; b++) {
+    for (let c = 0; c < 2; c++) {
+      mats.push({
+        M: math.multiply(
+          math.multiply(math.pow(A, a), math.pow(B, b)),
+          math.pow(C, c)
+        ),
+        tri: triIndex,
+      });
+      triIndex++;
     }
   }
-  const { gomColor } = useControls({
-  gomColor: '#ffc400ff', // ← ここが好きな初期色
-  });
+}
 
 
-function Vertex({ xyz, index, color }:any) {
+
+
+// --- 2. 各パーツ（コンポーネント）の定義（Appの外に出す） ---
+
+function CylinderBetween({ start, end, radius = 0.02, color = 'orange' }: any) {
+  const startVec = useMemo(() => new THREE.Vector3(...start), [start]);
+  const endVec = useMemo(() => new THREE.Vector3(...end), [end]);
+  const mid = useMemo(() => startVec.clone().add(endVec).multiplyScalar(0.5), [startVec, endVec]);
+  const dir = useMemo(() => endVec.clone().sub(startVec), [startVec, endVec]);
+  const length = dir.length();
+  const orientation = useMemo(() => {
+    const axis = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion();
+    quaternion.setFromUnitVectors(axis, dir.clone().normalize());
+    return quaternion;
+  }, [dir]);
+
+  return (
+    <Cylinder args={[radius, radius, length, 16]} position={mid} quaternion={orientation}>
+      <meshStandardMaterial color={color} />
+    </Cylinder>
+  );
+}
+
+function Vertex({ xyz, index, color }: any) {
   return (
     <group position={xyz}>
       <mesh>
         <sphereGeometry args={[0.5, 32, 32]} />
         <meshStandardMaterial color={color} />
       </mesh>
-
       <Billboard>
-        <Text
-          position={[0, 1.2, 0]}
-          fontSize={1.2}
-          color="white"
-          outlineColor="black"
-          outlineWidth={0.05}
-          anchorX="center"
-          anchorY="middle"
-        >
+        <Text position={[0, 1.2, 0]} fontSize={1.2} color="white" outlineColor="black" outlineWidth={0.05}>
           {index}
         </Text>
       </Billboard>
@@ -56,139 +70,157 @@ function Vertex({ xyz, index, color }:any) {
   );
 }
 
+function Vertices({ x0, color }: any) {
+  // 位置を文字列化して一意化
+  const unique = new Map<string, number[]>();
 
+  mats.forEach(({ M }) => {
+    const p = math.multiply(M, math.matrix(x0)).valueOf() as number[];
+    const key = p.map(v => v.toFixed(4)).join(',');
 
-function Vertices({ x0 }:any) {
-  const { vertexColor } = useControls({
-    vertexColor: '#ffffff', // ← 頂点の色（ここが1個だけ）
+    if (!unique.has(key)) {
+      unique.set(key, p);
+    }
   });
 
-  const points = mats.map((m) => math.multiply(m, math.matrix(x0)));
+  const points = Array.from(unique.values());
 
   return points.map((pt, i) => (
     <Vertex
       key={i}
-      xyz={pt.valueOf()}
+      xyz={pt}
       index={i + 1}
-      color={vertexColor}   // ← 全部同じ色になる
+      color={color}
     />
   ));
 }
 
-  function Triangle({ M, x0, color }:any) {
-    const p1 = math.multiply(M, math.matrix(x0)).valueOf();
-    const p2 = math.multiply(math.multiply(M, A), math.matrix(x0)).valueOf();
-    const p3 = math.multiply(math.multiply(M, math.pow(A, 2)), math.matrix(x0)).valueOf();
 
-    return (
-      <>
-        <CylinderBetween start={p1} end={p2} radius={0.2} color={color} />
-        <CylinderBetween start={p2} end={p3} radius={0.2} color={color} />
-        <CylinderBetween start={p3} end={p1} radius={0.2} color={color} />
-      </>
-    );
-  }
 
-function Straws({ x0 }:any) {
-  // 三角形の色
-  const colorControls = useControls('Triangle Colors', {
-    tri1: '#ff0000',
-    tri2: '#0000ff',
-    tri3: '#00ff00',
-    tri4: '#ddff00ff',
-  });
+function Triangle({ M, x0, color }: any) { 
+  const p1 = math.multiply(M, math.matrix(x0)).valueOf(); 
+  const p2 = math.multiply(math.multiply(M, A), math.matrix(x0)).valueOf(); 
+  const p3 = math.multiply(math.multiply(M, math.pow(A, 2)), math.matrix(x0)).valueOf(); 
+  return ( <> 
+  <CylinderBetween start={p1} end={p2} radius={0.2} color={color} /> 
+  <CylinderBetween start={p2} end={p3} radius={0.2} color={color} /> 
+  <CylinderBetween start={p3} end={p1} radius={0.2} color={color} /> </> 
+  ); }
 
-  // 👇 表示 / 非表示スイッチ
-  const visibleControls = useControls('Triangle Visible', {
-    t1: true,
-    t2: true,
-    t3: true,
-    t4: true,
-  });
 
-  const colors = Object.values(colorControls);
-  const visibles = Object.values(visibleControls);
+function Straws({ x0, colors, visibles }: any) {
+  return (
+    <>
+      {mats.map((m, i) => {
+        const visible =
+          (m.tri === 0 && visibles.t1) ||
+          (m.tri === 1 && visibles.t2) ||
+          (m.tri === 2 && visibles.t3) ||
+          (m.tri === 3 && visibles.t4);
 
-  return mats.map((M, i) => {
-    // 👇 OFFなら描画しない
-    if (!visibles[i % visibles.length]) return null;
+        if (!visible) return null;
 
-    return (
-      <Triangle
-        key={i}
-        M={M}
-        x0={x0}
-        color={colors[i % colors.length]}
-      />
-    );
-  });
+        return (
+          <Triangle
+            key={i}
+            M={m.M}
+            x0={x0}
+            color={
+              m.tri === 0
+                ? colors.tri1
+                : m.tri === 1
+                ? colors.tri2
+                : m.tri === 2
+                ? colors.tri3
+                : colors.tri4
+            }
+          />
+        );
+      })}
+    </>
+  );
 }
 
 
 
-function Goms1({ x0, gomColor }:any) {
-  return mats.map((M, i) => <Gom1 key={i} x0={x0} M={M} color={gomColor} />);
-}
 
-function Gom1({ x0, M, color }:any) {
+
+function Gom1({ x0, M, color }: any) {
   const G1 = math.multiply(A, B);
   const to = math.multiply(math.multiply(M, G1), math.matrix(x0));
   const from = math.multiply(M, math.matrix(x0));
   return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.05} color={color} />;
 }
 
-function Goms2({ x0 }:any) {
-  const { gomColor } = useControls({
-    gomColor: '#ff9900ff',
-  });
-
-  return mats.map((M, i) => <Gom2 key={i} x0={x0} M={M} color={gomColor} />);
-}
-
-
-
-function Gom2({ x0, M, color }:any) {
+function Gom2({ x0, M, color }: any) {
   const G2 = math.multiply(A, C);
   const to = math.multiply(math.multiply(M, G2), math.matrix(x0));
   const from = math.multiply(M, math.matrix(x0));
   return <CylinderBetween start={from.valueOf()} end={to.valueOf()} radius={0.05} color={color} />;
 }
 
+function Goms({ x0, color, visible }: any) {
+  if (!visible) return null;
 
-  function CylinderBetween({ start, end, radius = 0.02, color = 'orange' }:any) {
-    const startVec = useMemo(() => new THREE.Vector3(...start), [start]);
-    const endVec = useMemo(() => new THREE.Vector3(...end), [end]);
+  return (
+    <>
+      {mats.map(({ M }, i) => (
+        <group key={i}>
+          <Gom1 x0={x0} M={M} color={color} />
+          <Gom2 x0={x0} M={M} color={color} />
+        </group>
+      ))}
+    </>
+  );
+}
 
-    const mid = useMemo(() => startVec.clone().add(endVec).multiplyScalar(0.5), [startVec, endVec]);
-    const dir = useMemo(() => endVec.clone().sub(startVec), [startVec, endVec]);
-    const length = dir.length();
 
-    const orientation = useMemo(() => {
-      const axis = new THREE.Vector3(0, 1, 0);
-      const quaternion = new THREE.Quaternion();
-      quaternion.setFromUnitVectors(axis, dir.clone().normalize());
-      return quaternion;
-    }, [dir]);
+// --- 3. App本体（ここにはコントロールとCanvasだけ残す） ---
 
-    return (
-      <Cylinder args={[radius, radius, length, 16]} position={mid} quaternion={orientation}>
-        <meshStandardMaterial color={color} />
-      </Cylinder>
-    );
-  }
+export default function App() {
+  const triangleColors = useControls('Triangle Colors', {
+    tri1: '#ff0000',
+    tri2: '#0000ff',
+    tri3: '#00ff00',
+    tri4: '#ddff00ff',
+  });
+
+  const triangleVisible = useControls('Triangle Visible', {
+    t1: true,
+    t2: true,
+    t3: true,
+    t4: true,
+  });
+
+    const { gomColor, vertexColor, gomVisible } = useControls('Other Colors', {
+      gomColor: '#ffc400ff',
+      vertexColor: '#ffffff',
+      gomVisible: true, 
+    });
+
 
   const p0 = [0, 7.07, 7.07];
 
-  return (
-    <div style={{ width: '200dvh', height: '100dvh' }}>
+  
+return (
+    <div style={{ width: '100vw', height: '100vh' }}>
       <Canvas camera={{ position: [15, 15, 15] }}>
         <ambientLight intensity={0.75} />
         <directionalLight position={[10, 10, 10]} />
 
-        <Vertices x0={p0} />
-        <Straws x0={p0} />
-        <Goms1 x0={p0} gomColor={gomColor} />
-        <Goms2 x0={p0} gomColor={gomColor} />
+        <Vertices x0={p0} color={vertexColor} />
+
+       <Straws
+        x0={p0}
+        colors={triangleColors}
+        visibles={triangleVisible}
+      />
+    <Goms
+      x0={p0}
+      color={gomColor}
+      visible={gomVisible}
+    />
+
 
 
         <OrbitControls />
@@ -196,5 +228,3 @@ function Gom2({ x0, M, color }:any) {
     </div>
   );
 }
-
-export default App;
