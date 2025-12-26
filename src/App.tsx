@@ -310,28 +310,30 @@ function CurrentRubberText({ from, to }: { from: number; to: number }) {
 
 function CurrentRubberUI({ from, to }: { from: number; to: number }) {
   return (
-  <Html fullscreen style={{ pointerEvents: 'none' }}>
-    <div
-      style={{
-        position: 'absolute',
-        left: '20px',
-        top: '40%',
-        padding: '8px 12px',
-        background: 'rgba(255,255,255,0.1)', // 軽く透ける
-        color: '#ff77aa', // 柔らかいピンク
-        fontSize: '22px',
-        fontWeight: '600',
-        borderRadius: '12px',
-        border: '1px solid #ff77aa',
-        backdropFilter: 'blur(6px)', // 背景を少しぼかす
-      }}
-    >
-      {from} → {to}
-    </div>
-  </Html>
-
+    <Html fullscreen style={{ pointerEvents: 'none' }}>
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',      // 横中央
+          top: '10%',       // 上から10%の位置（調整可）
+          transform: 'translateX(-50%)', // 中央寄せ
+          padding: '8px 12px',
+          background: 'rgba(255,255,255,0.1)',
+          color: '#ff77aa',
+          fontSize: '22px',
+          fontWeight: '600',
+          borderRadius: '12px',
+          border: '1px solid #ff77aa',
+          backdropFilter: 'blur(6px)',
+          textAlign: 'center', // 中央揃え
+        }}
+      >
+        {from} → {to}
+      </div>
+    </Html>
   );
 }
+
 
 
 
