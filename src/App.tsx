@@ -4,11 +4,15 @@ import { OrbitControls, Cylinder, Text, Billboard } from '@react-three/drei';
 import { useControls, button } from 'leva';
 import * as THREE from 'three';
 import * as math from 'mathjs';
+import { Html } from '@react-three/drei';
+
 
 // --- 定数と行列 ---
 const A = math.matrix([[0, 1, 0], [0, 0, -1], [-1, 0, 0]]);
 const B = math.matrix([[1, 0, 0], [0, -1, 0], [0, 0, -1]]);
 const C = math.matrix([[-1, 0, 0], [0, 1, 0], [0, 0, -1]]);
+
+
 
 const mats: any[] = [];
 let triIndex = 0;
@@ -150,6 +154,7 @@ function Triangle({ M, x0, color }: any) {
 }
 
 function RubberPath({
+  
   path,
   step,
   vertexMap,
@@ -241,45 +246,129 @@ function Goms({ x0, color, visible }: any) {
   );
 }
 
+function CurrentRubberText({ from, to }: { from: number; to: number }) {
+  return (
+    <Billboard>
+      <Text
+        position={[0, 10, 0]}
+        fontSize={1.4}
+        color="hotpink"
+        outlineColor="black"
+        outlineWidth={0.08}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {`今：${from} → ${to}`}
+      </Text>
+    </Billboard>
+  );
+}
+
+function CurrentRubberUI({ from, to }: { from: number; to: number }) {
+  return (
+    <Html
+      position={[0, 0, 0]}   // 位置は意味を持たない
+      fullscreen             // ★ 画面固定
+      style={{
+        pointerEvents: 'none', // 操作の邪魔をしない
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: '20px',
+          top: '40%',
+          padding: '12px 16px',
+          background: 'rgba(0,0,0,0.6)',
+          color: '#ff69b4',
+          fontSize: '20px',
+          fontWeight: 'bold',
+          borderRadius: '8px',
+          border: '2px solid #ff69b4',
+        }}
+      >
+        今：{from} → {to}
+      </div>
+    </Html>
+  );
+}
+
+
+
 // --- App本体 ---
 export default function App() {
-  const [step, setStep] = useState(3); //初期状態は3
-  const [rubberStep, setRubberStep] = useState(0);
+  //const [step, setStep] = useState(1); //初期状態は1
+// 1: 三角形ユニット
+// 2: 三角形配置
+// 3: 輪ゴム手順
+// 4: 完成
+ 
+  const [stage, setStage] = useState(1); //今どの工程か
+  const [rubberStep, setRubberStep] = useState(0); //輪ゴムの何本目か
 
-  const triangleColors = useControls('Triangle Colors', {
+  console.log('stage:', stage);
+
+  const triangleColors = useControls('各三角形の色', {
     tri1: '#ff0000',
     tri2: '#0000ff',
     tri3: '#00ff00',
     tri4: '#ddff00ff',
   });
+  const triangleColorsStage3 = {
+    tri1: '#ffb3b3',
+    tri2: '#b3ffb3',
+    tri3: '#b3b3ff',
+    tri4: '#ffd9b3',
+  };
 
-  const triangleVisible = useControls('Triangle Visible', {
+
+  const triangleVisible = useControls('各三角形の表示/非表示', {
     t1: true,
     t2: true,
     t3: true,
     t4: true,
   });
 
-  const { gomColor, vertexColor, gomVisible } = useControls('Other Colors', {
+  const { gomColor, vertexColor, gomVisible } = useControls('輪ゴムと頂点の色,輪ゴムの表示/非表示', {
     gomColor: '#ffc400ff',
     vertexColor: '#ffffff',
     gomVisible: true,
   });
 
   // ステップ切り替えボタン
-  useControls('Step', {
-    '① 点だけ': button(() => setStep(1)),
-    '② ストロー追加': button(() => setStep(2)),
-    '③ ゴムで完成': button(() => setStep(3)),
+  useControls('作る手順', {
+    '① 三角形を作る': button(() => setStage(1)),
+    '② 配置する': button(() => setStage(2)),
+    '③ 輪ゴムをかける': button(() => setStage(3)),
+    '④ 完成': button(() => setStage(4)),
   });
-  useControls('Rubber Order', {
-  Prev: button(() =>
-    setRubberStep(s => Math.max(0, s - 1))
-  ),
-  Next: button(() =>
-    setRubberStep(s => Math.min(rubberPath.length - 1, s + 1))
-  ),
-});
+
+useControls(
+  '輪ゴム手順',
+  () => ({
+    前へ: button(
+      () => setRubberStep(s => Math.max(0, s - 1)),
+      { disabled: stage !== 3 }
+    ),
+    次へ: button(
+      () =>
+        setRubberStep(s =>
+          Math.min(rubberPath.length - 1, s + 1)
+        ),
+      { disabled: stage !== 3 }
+    ),
+  }),
+  [stage] // ← ★これが超重要
+);
+
+const rubberAssist: any = useControls(
+  '輪ゴム補助表示',
+  {
+    showVertices: true,     // ★ デフォルトON
+    showTriangles: false,    // ★ デフォルトON
+  }
+);
+
 
 
   const p0 = [0, 7.07, 7.07];
@@ -311,82 +400,121 @@ export default function App() {
   }, [p0]);
   
 
-  return 
+  return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <Canvas camera={{ position: [15, 15, 15] }}>
         <ambientLight intensity={0.75} />
         <directionalLight position={[10, 10, 10]} />
-        {/* ① 点 */}
-          {step >= 1 && <Vertices x0={p0} color={vertexColor} />}
+        {/* ① 三角形ユニットを作る */} 
+        {stage === 1 && (
+          <>
+            <Vertices x0={p0} color={vertexColor} />
 
-          {/* ② ストロー */}
-          {step >= 2 && (
+            <Straws
+              x0={p0}
+              colors={{ tri1: '#ff7777' }}
+              visibles={{ t1: true, t2: false, t3: false, t4: false }}
+            />
+          </>
+        )}
+
+
+        {/* ② 三角形配置（ON/OFF 使えるのはここだけ） */}
+        {stage === 2 && (
+          <>
+            <Vertices x0={p0} color={vertexColor} />
+
             <Straws
               x0={p0}
               colors={triangleColors}
               visibles={triangleVisible}
             />
-          )}
+          </>
+        )}
 
-          {/* ★③ ゴムの順番表示（ここ！！！） */}
-          {step >= 3 && (
-            <RubberPath
-              path={rubberPath}
-              step={rubberStep}
-              vertexMap={vertexMap}
-            />
-          )}
 
-          {/* ④ 全部つながったゴム（完成形） */}
-          {step >= 3 && (
-            <Goms
+        {/* ③ 輪ゴム手順 */}
+{/* ③ 輪ゴム手順 */}
+{stage === 3 && (
+  <>
+    {/* ★ 頂点（デフォルト表示） */}
+    {rubberAssist.showVertices && (
+      <Vertices x0={p0} color={vertexColor} />
+    )}
+
+    {rubberPath[rubberStep] && (
+  <CurrentRubberUI
+    key={rubberStep}   // ★ これを追加
+    from={rubberPath[rubberStep][0]}
+    to={rubberPath[rubberStep][1]}
+  />
+)}
+
+
+    {/* 三角形（薄く表示） */}
+    {rubberAssist.showTriangles && (
+      <Straws
+        x0={p0}
+        colors={triangleColorsStage3}
+        visibles={triangleVisible}
+      />
+    )}
+
+    {/* すでに通った輪ゴム */}
+    {rubberPath.slice(0, rubberStep).map(([from, to], i) => {
+      const start = vertexPositions[from - 1];
+      const end = vertexPositions[to - 1];
+      if (!start || !end) return null;
+
+      return (
+        <CylinderBetween
+          key={i}
+          start={start}
+          end={end}
+          radius={0.15}
+          color="#cccccc"
+          opacity={0.25}
+        />
+      );
+    })}
+
+    {/* 今かける輪ゴム */}
+    {(() => {
+      const [from, to] = rubberPath[rubberStep];
+      const start = vertexPositions[from - 1];
+      const end = vertexPositions[to - 1];
+      if (!start || !end) return null;
+
+      return (
+        <>
+          <CylinderBetween
+            start={start}
+            end={end}
+            radius={0.35}
+            color="hotpink"
+          />
+          <ArrowBetween start={start} end={end} />
+        </>
+      );
+    })()}
+  </>
+)}
+
+
+
+        {/* ④ 完成 */}
+        {stage === 4 && (
+          <>
+            <Vertices x0={p0} color={vertexColor} />
+            <Straws
               x0={p0}
-              color={gomColor}
-              visible={gomVisible}
+              colors={triangleColors}
+              visibles={{ t1: true, t2: true, t3: true, t4: true }}
             />
-          )}
+            <Goms x0={p0} color={gomColor} visible />
+          </>
+        )}
 
-        {/* すでに通った輪ゴム（薄く表示） */}
-        {rubberPath.slice(0, rubberStep).map(([from, to], i) => {
-          const start = vertexPositions[from - 1];
-          const end = vertexPositions[to - 1];
-          if (!start || !end) return null;
-
-          return (
-            <CylinderBetween
-              key={i}
-              start={start}
-              end={end}
-              radius={0.15}
-              color="white"
-            />
-          );
-        })}
-
-        {/* 今かける輪ゴム（強調＋矢印） */}
-        {(() => {
-          const [from, to] = rubberPath[rubberStep];
-          const start = vertexPositions[from - 1];
-          const end = vertexPositions[to - 1];
-
-          if (!start || !end) return null;
-
-          return (
-            <>
-              <CylinderBetween
-                start={start}
-                end={end}
-                radius={0.35}
-                color="hotpink"
-              />
-              <ArrowBetween
-                start={start}
-                end={end}
-                color="hotpink"
-              />
-            </>
-          );
-        })()}
         
 
         
