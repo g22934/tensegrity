@@ -311,7 +311,7 @@ export default function App() {
   }, [p0]);
   
 
-  return (
+  return 
     <div style={{ width: '100vw', height: '100vh' }}>
       <Canvas camera={{ position: [15, 15, 15] }}>
         <ambientLight intensity={0.75} />
