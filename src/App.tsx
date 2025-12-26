@@ -5,6 +5,9 @@ import { useControls, button } from 'leva';
 import * as THREE from 'three';
 import * as math from 'mathjs';
 import { Html } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
+import { useRef } from 'react';
+
 
 
 // --- 定数と行列 ---
@@ -105,40 +108,81 @@ function RubberEdge({ from, to, color, opacity = 1 }: any) {
 }
 
 
-
 function Vertex({ xyz, index, color, highlight }: any) {
+  const ref = useRef<THREE.Group>(null);
+  const textRef = useRef<THREE.Object3D>(null);
+
+useFrame(({ clock }) => {
+  if (!highlight) return;
+
+  const t = clock.getElapsedTime();
+
+  // 球（今まで通り）
+  if (ref.current) {
+    ref.current.position.y = xyz[1] + Math.sin(t * 2) * 0.4;
+  }
+
+  // 数字（ちょっとだけ・遅れて）
+  if (textRef.current) {
+    textRef.current.position.y =
+      1.2 + Math.sin(t * 2 - 0.6) * 0.15;
+  }
+});
+
+
   return (
-    <group position={xyz}>
+    <group ref={ref} position={xyz}>
       <mesh>
-      <sphereGeometry args={[highlight ? 0.8 : 0.5, 32, 32]} />
-      <meshStandardMaterial color={highlight ? 'hotpink' : color} />
+        <sphereGeometry args={[highlight ? 0.8 : 0.5, 32, 32]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={highlight ? 'hotpink' : 'black'}
+          emissiveIntensity={highlight ? 1 : 0}
+        />
       </mesh>
+
       <Billboard>
-        <Text
-          position={[0, 1.2, 0]}
-          fontSize={1.2}
-          color="white"
-          outlineColor="black"
-          outlineWidth={0.05}
-        >
-          {index}
-        </Text>
+      <Text
+        ref={textRef}
+        position={[0, 1.2, 0]}
+        fontSize={1.2}
+        color="white"
+        outlineColor="black"
+        outlineWidth={0.05}
+        material-depthTest={false} 
+
+      >
+        {index}
+      </Text>
+
+
       </Billboard>
     </group>
   );
 }
 
-function Vertices({ x0, color }: any) {
+
+function Vertices({ x0, color, highlightVertices = [] }: any) {
+
   const unique = new Map<string, number[]>();
+
   mats.forEach(({ M }) => {
     const p = math.multiply(M, math.matrix(x0)).valueOf() as number[];
     const key = p.map((v) => v.toFixed(4)).join(',');
     if (!unique.has(key)) unique.set(key, p);
   });
-  return Array.from(unique.values()).map((pt, i) => (
-    <Vertex key={i} xyz={pt} index={i + 1} color={color} />
-  ));
+
+return Array.from(unique.values()).map((pt, i) => (
+  <Vertex
+    key={i}
+    xyz={pt}
+    index={i + 1}
+    color={color}
+    highlight={highlightVertices.includes(i + 1)}
+  />
+));
 }
+
 
 function Triangle({ M, x0, color }: any) {
   const p1 = math.multiply(M, math.matrix(x0)).valueOf();
@@ -266,30 +310,26 @@ function CurrentRubberText({ from, to }: { from: number; to: number }) {
 
 function CurrentRubberUI({ from, to }: { from: number; to: number }) {
   return (
-    <Html
-      position={[0, 0, 0]}   // 位置は意味を持たない
-      fullscreen             // ★ 画面固定
+  <Html fullscreen style={{ pointerEvents: 'none' }}>
+    <div
       style={{
-        pointerEvents: 'none', // 操作の邪魔をしない
+        position: 'absolute',
+        left: '20px',
+        top: '40%',
+        padding: '8px 12px',
+        background: 'rgba(255,255,255,0.1)', // 軽く透ける
+        color: '#ff77aa', // 柔らかいピンク
+        fontSize: '22px',
+        fontWeight: '600',
+        borderRadius: '12px',
+        border: '1px solid #ff77aa',
+        backdropFilter: 'blur(6px)', // 背景を少しぼかす
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          left: '20px',
-          top: '40%',
-          padding: '12px 16px',
-          background: 'rgba(0,0,0,0.6)',
-          color: '#ff69b4',
-          fontSize: '20px',
-          fontWeight: 'bold',
-          borderRadius: '8px',
-          border: '2px solid #ff69b4',
-        }}
-      >
-        今：{from} → {to}
-      </div>
-    </Html>
+      {from} → {to}
+    </div>
+  </Html>
+
   );
 }
 
@@ -434,24 +474,28 @@ const rubberAssist: any = useControls(
 
 
         {/* ③ 輪ゴム手順 */}
-{/* ③ 輪ゴム手順 */}
 {stage === 3 && (
   <>
-    {/* ★ 頂点（デフォルト表示） */}
-    {rubberAssist.showVertices && (
-      <Vertices x0={p0} color={vertexColor} />
+    {/* ★ 今の輪ゴムの from / to */}
+    <Vertices
+  x0={p0}
+  color={vertexColor}
+  highlightVertices={
+    stage === 3 ? [rubberPath[rubberStep][0], rubberPath[rubberStep][1]] : []
+  }
+/>
+
+
+    {/* UI */}
+    {rubberPath[rubberStep] && (
+      <CurrentRubberUI
+        key={rubberStep}
+        from={rubberPath[rubberStep][0]}
+        to={rubberPath[rubberStep][1]}
+      />
     )}
 
-    {rubberPath[rubberStep] && (
-  <CurrentRubberUI
-    key={rubberStep}   // ★ これを追加
-    from={rubberPath[rubberStep][0]}
-    to={rubberPath[rubberStep][1]}
-  />
-)}
-
-
-    {/* 三角形（薄く表示） */}
+    {/* 三角形（薄く） */}
     {rubberAssist.showTriangles && (
       <Straws
         x0={p0}
