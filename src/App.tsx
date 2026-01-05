@@ -66,7 +66,7 @@ function ArrowBetween({ start, end }: any) {
   const endVec = new THREE.Vector3(...end);
 
   const dir = endVec.clone().sub(startVec);
-  const length = dir.length();
+  //const length = dir.length();
 
   // 終点寄り & 少し浮かせる
   const pos = startVec.clone().add(dir.clone().multiplyScalar(0.75));
@@ -95,7 +95,7 @@ function ArrowBetween({ start, end }: any) {
   );
 }
 
-function RubberEdge({ from, to, color, opacity = 1 }: any) {
+/*function RubberEdge({ from, to, color, opacity = 1 }: any) {
   return (
     <CylinderBetween
       start={from}
@@ -106,6 +106,7 @@ function RubberEdge({ from, to, color, opacity = 1 }: any) {
     />
   );
 }
+  */
 
 
 function Vertex({ xyz, index, color, highlight }: any) {
@@ -197,7 +198,7 @@ function Triangle({ M, x0, color }: any) {
   );
 }
 
-function RubberPath({
+/*function RubberPath({
   
   path,
   step,
@@ -228,7 +229,7 @@ function RubberPath({
     </>
   );
 }
-
+*/
 
 
 function Straws({ x0, colors, visibles }: any) {
@@ -290,7 +291,7 @@ function Goms({ x0, color, visible }: any) {
   );
 }
 
-function CurrentRubberText({ from, to }: { from: number; to: number }) {
+/*function CurrentRubberText({ from, to }: { from: number; to: number }) {
   return (
     <Billboard>
       <Text
@@ -307,6 +308,7 @@ function CurrentRubberText({ from, to }: { from: number; to: number }) {
     </Billboard>
   );
 }
+*/
 
 function CurrentRubberUI({ from, to }: { from: number; to: number }) {
   return (
@@ -331,7 +333,7 @@ function CurrentRubberUI({ from, to }: { from: number; to: number }) {
         {from} → {to}
       </div>
     </Html>
-    
+
   );
 }
 
@@ -372,7 +374,7 @@ export default function App() {
     t4: true,
   });
 
-  const { gomColor, vertexColor, gomVisible } = useControls('輪ゴムと頂点の色,輪ゴムの表示/非表示', {
+  const { gomColor, vertexColor } = useControls('輪ゴムと頂点の色,輪ゴムの表示/非表示', {
     gomColor: '#ffc400ff',
     vertexColor: '#ffffff',
     gomVisible: true,
@@ -425,7 +427,7 @@ const rubberAssist: any = useControls(
     return Array.from(unique.values());
   }, []);
 
-  const vertexMap = useMemo(() => {
+  /*const vertexMap = useMemo(() => {
     const map = new Map<number, number[]>();
 
     const unique = new Map<string, number[]>();
@@ -441,7 +443,7 @@ const rubberAssist: any = useControls(
 
     return map;
   }, [p0]);
-  
+  */
 
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
